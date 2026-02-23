@@ -1,0 +1,44 @@
+body {
+    font-family: Arial;
+    margin: 20px;
+}
+
+main {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+    width: 300px;
+}
+
+input, select, button {
+    margin-bottom: 8px;
+    padding: 6px;
+}
+
+.invalid {
+    border: 1px solid red;
+}
+
+.error-text {
+    color: red;
+    font-size: 12px;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+th, td {
+    border: 1px solid black;
+    padding: 6px;
+}
+
+button {
+    cursor: pointer;
+}
