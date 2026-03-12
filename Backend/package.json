@@ -1,0 +1,13 @@
+{
+  "name": "cyber-incidents-api",
+  "version": "1.0.0",
+  "description": "Cyber incidents tracker API",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
