@@ -1,19 +1,31 @@
 import express from "express";
-import incidentsRoutes from "./routes/incidents.js";
-import { logger } from "./middleware/logger.js";
-import { errorHandler } from "./middleware/errorHandler.js";
+import fs from "fs";
+import path from "path";
+import { db } from "./db/db.js";
+
+console.log(" SERVER STARTED");
 
 const app = express();
-
 app.use(express.json());
-app.use(logger);
 
-app.use("/api/incidents", incidentsRoutes);
+// читаємо schema.sql
+const schemaPath = path.resolve("db/schema.sql");
+const schema = fs.readFileSync(schemaPath, "utf-8");
 
-app.use(errorHandler);
+// створюємо таблиці
+db.exec(schema, (err) => {
+  if (err) {
+    console.error(" Schema error:", err);
+  } else {
+    console.log(" Schema created");
+  }
+});
 
-const PORT = 3000;
+// тестовий маршрут
+app.get("/", (req, res) => {
+  res.send("API is working");
+});
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(3000, () => {
+  console.log(" Server running on port 3000");
 });

@@ -64,4 +64,3 @@ export function deleteIncident(req, res) {
 
  res.status(204).send();
 }
-

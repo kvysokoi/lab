@@ -8,4 +8,3 @@ export function createIncidentDTO(data) {
   reporter: data.reporter
  };
 }
-

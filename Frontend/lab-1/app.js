@@ -1,17 +1,31 @@
 const state = {
     incidents: [],
     nextId: 1,
-    editingId: null
+    editingId: null,
+    sortColumn: null, 
+    sortOrder: 'asc' 
 };
 
 const form = document.getElementById("incidentForm");
 const tableBody = document.getElementById("incidentTableBody");
 const searchInput = document.getElementById("searchInput");
 const filterSeverity = document.getElementById("filterSeverity");
-const sortSelect = document.getElementById("sortSelect");
 const submitBtn = document.getElementById("submitBtn");
 
 loadFromStorage();
+
+document.querySelector("thead").addEventListener("click", function(e) {
+    const column = e.target.dataset.sort;
+    if (!column) return; 
+    if (state.sortColumn === column) {
+        state.sortOrder = state.sortOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+        state.sortColumn = column;
+        state.sortOrder = 'asc';
+    }
+
+    render();
+});
 
 form.addEventListener("submit", function (event) {
     event.preventDefault();
@@ -53,7 +67,6 @@ tableBody.addEventListener("click", function (e) {
 
     if (e.target.classList.contains("editBtn")) {
         clearErrors();
-
         const incident = state.incidents.find(i => i.id === id);
 
         document.getElementById("titleInput").value = incident.title;
@@ -68,11 +81,9 @@ tableBody.addEventListener("click", function (e) {
 
 searchInput.addEventListener("input", render);
 filterSeverity.addEventListener("change", render);
-sortSelect.addEventListener("change", render);
 
 function render() {
     tableBody.innerHTML = "";
-
     let data = [...state.incidents];
 
     const searchValue = searchInput.value.toLowerCase();
@@ -84,13 +95,26 @@ function render() {
         data = data.filter(i => i.severity === filterSeverity.value);
     }
 
-    if (sortSelect.value === "date") {
-        data.sort((a, b) => new Date(a.date) - new Date(b.date));
-    }
+    if (state.sortColumn) {
+        data.sort((a, b) => {
+            let valA = a[state.sortColumn];
+            let valB = b[state.sortColumn];
 
-    if (sortSelect.value === "severity") {
-        const order = { Low: 1, Medium: 2, High: 3 };
-        data.sort((a, b) => order[a.severity] - order[b.severity]);
+            if (state.sortColumn === 'severity') {
+                const order = { Low: 1, Medium: 2, High: 3 };
+                valA = order[valA];
+                valB = order[valB];
+            }
+            
+            if (state.sortColumn === 'date') {
+                valA = new Date(valA);
+                valB = new Date(valB);
+            }
+
+            if (valA < valB) return state.sortOrder === 'asc' ? -1 : 1;
+            if (valA > valB) return state.sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        });
     }
 
     data.forEach(function (item) {
@@ -111,27 +135,22 @@ function render() {
 
 function validate(dto) {
     let isValid = true;
-
     if (dto.title === "") {
         showError("titleInput", "titleError", "Поле обов'язкове");
         isValid = false;
     }
-
     if (dto.severity === "") {
         showError("severitySelect", "severityError", "Оберіть значення");
         isValid = false;
     }
-
     if (dto.status === "") {
         showError("statusSelect", "statusError", "Оберіть статус");
         isValid = false;
     }
-
     if (dto.date === "") {
         showError("dateInput", "dateError", "Вкажіть дату");
         isValid = false;
     }
-
     return isValid;
 }
 
