@@ -121,7 +121,7 @@ function render() {
         tableBody.innerHTML += `
         <tr>
             <td>${item.title}</td>
-            <td>${item.severity}</td>
+            <td class="severity-${item.severity}">${item.severity}</td>
             <td>${item.status}</td>
             <td>${item.date}</td>
             <td>

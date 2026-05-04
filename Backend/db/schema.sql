@@ -1,8 +1,28 @@
+CREATE TABLE IF NOT EXISTS users (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ username TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS incidents (
  id INTEGER PRIMARY KEY AUTOINCREMENT,
  date TEXT,
- tag TEXT,
  severity TEXT,
  comments TEXT,
- reporter TEXT
+ user_id INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS comments (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ incident_id INTEGER,
+ text TEXT
+);
+
+CREATE TABLE IF NOT EXISTS tags (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ name TEXT
+);
+
+CREATE TABLE IF NOT EXISTS incident_tags (
+ incident_id INTEGER,
+ tag_id INTEGER
 );

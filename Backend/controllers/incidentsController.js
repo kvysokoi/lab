@@ -1,66 +1,90 @@
-import { incidents } from "../data/store.js";
-import { createIncidentDTO } from "../dto/incidentDTO.js";
+import { db } from "../db/db.js";
 
 export function getAllIncidents(req, res) {
- res.json(incidents);
+
+ const sql = `
+ SELECT incidents.id,
+        incidents.severity,
+        incidents.date,
+        users.username AS user
+ FROM incidents
+ LEFT JOIN users ON incidents.user_id = users.id
+ `;
+
+ db.all(sql, [], (err, rows) => {
+  if (err) return res.status(500).json({ error: err.message });
+
+  res.json(rows);
+ });
 }
 
 export function getIncidentById(req, res) {
 
- const id = Number(req.params.id);
+ const sql = `
+ SELECT incidents.id,
+        incidents.severity,
+        incidents.date,
+        users.username AS user
+ FROM incidents
+ LEFT JOIN users ON incidents.user_id = users.id
+ WHERE incidents.id = ?
+ `;
 
- const incident = incidents.find(i => i.id === id);
+ db.get(sql, [req.params.id], (err, row) => {
 
- if (!incident) {
-  return res.status(404).json({
-   error: "Incident not found"
-  });
- }
+  if (!row) return res.status(404).json({ error: "Not found" });
 
- res.json(incident);
+  res.json(row);
+ });
 }
 
 export function createIncident(req, res) {
 
- const incident = createIncidentDTO(req.body);
+ const { date, severity, comments, user_id } = req.body;
 
- incidents.push(incident);
+ if (!severity) {
+  return res.status(400).json({ error: "Severity required" });
+ }
 
- res.status(201).json(incident);
+ db.run(
+  `INSERT INTO incidents (date, severity, comments, user_id)
+   VALUES (?, ?, ?, ?)`,
+  [date, severity, comments, user_id],
+  function(err) {
+
+   if (err) return res.status(500).json({ error: err.message });
+
+   res.status(201).json({ id: this.lastID });
+  }
+ );
 }
 
 export function updateIncident(req, res) {
 
- const id = Number(req.params.id);
+ const { severity } = req.body;
 
- const incident = incidents.find(i => i.id === id);
+ db.run(
+  "UPDATE incidents SET severity = ? WHERE id = ?",
+  [severity, req.params.id],
+  function(err) {
 
- if (!incident) {
-  return res.status(404).json({
-   error: "Incident not found"
-  });
- }
+   if (this.changes === 0) {
+    return res.status(404).json({ error: "Not found" });
+   }
 
- incident.tag = req.body.tag ?? incident.tag;
- incident.severity = req.body.severity ?? incident.severity;
- incident.comments = req.body.comments ?? incident.comments;
-
- res.json(incident);
+   res.json({ message: "Updated" });
+  }
+ );
 }
 
 export function deleteIncident(req, res) {
 
- const id = Number(req.params.id);
+ db.run("DELETE FROM incidents WHERE id = ?", [req.params.id], function(err) {
 
- const index = incidents.findIndex(i => i.id === id);
+  if (this.changes === 0) {
+   return res.status(404).json({ error: "Not found" });
+  }
 
- if (index === -1) {
-  return res.status(404).json({
-   error: "Incident not found"
-  });
- }
-
- incidents.splice(index, 1);
-
- res.status(204).send();
+  res.status(204).send();
+ });
 }

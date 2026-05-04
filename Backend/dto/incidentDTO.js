@@ -1,6 +1,8 @@
+let currentId = 1;
+
 export function createIncidentDTO(data) {
  return {
-  id: Date.now(),
+  id: currentId++,
   date: data.date,
   tag: data.tag,
   severity: data.severity,
