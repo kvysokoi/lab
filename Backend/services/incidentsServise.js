@@ -1,44 +1,91 @@
-import { incidents } from "../data/store.js";
+import { db } from "../db/db.js";
 
-export function getAll(filter) {
+export function getAll(callback) {
 
- if (!filter) return incidents;
-
- return incidents.filter(i => {
-  if (filter.tag && i.tag !== filter.tag) return false;
-  if (filter.severity && i.severity !== filter.severity) return false;
-  return true;
- });
+ db.all(`
+ SELECT * FROM incidents
+ ORDER BY id DESC
+ `, callback);
 }
 
-export function getById(id) {
- return incidents.find(i => i.id === id);
+export function getOne(id, callback) {
+
+ db.get(`
+ SELECT * FROM incidents
+ WHERE id=${id}
+ `, callback);
 }
 
-export function create(incident) {
- incidents.push(incident);
- return incident;
+export function create(data, callback) {
+
+ db.run(`
+ INSERT INTO incidents(
+  date,
+  tag,
+  severity,
+  comments,
+  reporter,
+  user_id
+ )
+ VALUES(
+  '${data.date}',
+  '${data.tag}',
+  '${data.severity}',
+  '${data.comments}',
+  '${data.reporter}',
+  ${data.user_id}
+ )
+ `, callback);
 }
 
-export function update(id, data) {
+export function remove(id, callback) {
 
- const incident = incidents.find(i => i.id === id);
-
- if (!incident) return null;
-
- incident.tag = data.tag ?? incident.tag;
- incident.severity = data.severity ?? incident.severity;
- incident.comments = data.comments ?? incident.comments;
-
- return incident;
+ db.run(`
+ DELETE FROM incidents
+ WHERE id=${id}
+ `, callback);
 }
 
-export function remove(id) {
+export function getStats(callback) {
 
- const index = incidents.findIndex(i => i.id === id);
+ db.get(`
+ SELECT COUNT(*) as total
+ FROM incidents
+ `, callback);
+}
 
- if (index === -1) return false;
+export function getFull(callback) {
 
- incidents.splice(index, 1);
- return true;
+ db.all(`
+ SELECT
+  incidents.id,
+  incidents.tag,
+  incidents.severity,
+  users.username
+ FROM incidents
+ JOIN users
+ ON incidents.user_id = users.id
+ ORDER BY incidents.id DESC
+ `, callback);
+}
+
+export function search(tag, callback) {
+
+ db.all(`
+ SELECT *
+ FROM incidents
+ WHERE tag='${tag}'
+ `, callback);
+}
+
+export function getCountBySeverityForUser(userId, callback) {
+
+ db.all(`
+ SELECT
+  severity,
+  COUNT(*) as count
+ FROM incidents
+ WHERE user_id = ${userId}
+ GROUP BY severity
+ `, callback);
 }

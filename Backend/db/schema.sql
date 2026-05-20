@@ -6,9 +6,12 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS incidents (
  id INTEGER PRIMARY KEY AUTOINCREMENT,
  date TEXT,
+ tag TEXT,
  severity TEXT,
  comments TEXT,
- user_id INTEGER
+ reporter TEXT,
+ user_id INTEGER,
+ FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS comments (
