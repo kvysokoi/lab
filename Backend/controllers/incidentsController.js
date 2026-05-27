@@ -1,9 +1,10 @@
 import { db } from "../db/db.js";
 import { getCountBySeverityForUser } from "../services/incidentsServise.js";
 
-// Уніфікована помилка (ProblemDetails-подібний формат)
 function problem(res, status, title, detail) {
-  return res.status(status).json({ status, title, detail });
+  // Сценарій Г: не розкриваємо внутрішні деталі для 500
+  const safeDetail = status === 500 ? "Internal server error" : detail;
+  return res.status(status).json({ status, title, detail: safeDetail });
 }
 
 export function getAllIncidents(req, res) {
@@ -13,6 +14,7 @@ export function getAllIncidents(req, res) {
            incidents.date,
            incidents.tag,
            incidents.reporter,
+           incidents.owner_id,
            users.username AS user
     FROM incidents
     LEFT JOIN users ON incidents.user_id = users.id
@@ -32,6 +34,7 @@ export function getIncidentById(req, res) {
            incidents.date,
            incidents.tag,
            incidents.reporter,
+           incidents.owner_id,
            users.username AS user,
            comments.text AS comment
     FROM incidents
@@ -43,6 +46,12 @@ export function getIncidentById(req, res) {
   db.get(sql, [req.params.id], (err, row) => {
     if (err) return problem(res, 500, "Database error", err.message);
     if (!row) return problem(res, 404, "Not found", `Incident ${req.params.id} not found`);
+
+    // Сценарій В — IDOR: перевірка власника
+    if (row.owner_id && row.owner_id !== req.currentUserId) {
+      return problem(res, 403, "Forbidden", "You do not have access to this incident");
+    }
+
     res.json(row);
   });
 }
@@ -50,12 +59,11 @@ export function getIncidentById(req, res) {
 export function createIncident(req, res) {
   const { date, tag, severity, reporter, user_id, comments } = req.body;
 
-  // Валідація
   const errors = {};
   if (!date) errors.date = "Date is required";
   if (!tag || tag.length < 2) errors.tag = "Tag must be at least 2 characters";
   if (!severity) errors.severity = "Severity is required";
-  if (!["low", "medium", "high"].includes((severity || "").toLowerCase()))
+  else if (!["low", "medium", "high"].includes(severity.toLowerCase()))
     errors.severity = "Severity must be low, medium or high";
   if (!reporter || reporter.length < 2) errors.reporter = "Reporter must be at least 2 characters";
   if (!user_id) errors.user_id = "user_id is required";
@@ -69,12 +77,14 @@ export function createIncident(req, res) {
     });
   }
 
+  const ownerId = req.currentUserId;
+
   const sql = `
-    INSERT INTO incidents (date, tag, severity, reporter, user_id, comments)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO incidents (date, tag, severity, reporter, user_id, comments, owner_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `;
 
-  db.run(sql, [date, tag, severity.toLowerCase(), reporter, user_id, comments || ""], function (err) {
+  db.run(sql, [date, tag, severity.toLowerCase(), reporter, user_id, comments || "", ownerId], function (err) {
     if (err) return problem(res, 500, "Database error", err.message);
     res.status(201).json({ id: this.lastID });
   });
@@ -101,31 +111,48 @@ export function updateIncident(req, res) {
     });
   }
 
-  const fields = [];
-  const values = [];
-
-  fields.push("severity = ?"); values.push(severity.toLowerCase());
-  if (tag)      { fields.push("tag = ?");      values.push(tag); }
-  if (date)     { fields.push("date = ?");     values.push(date); }
-  if (reporter) { fields.push("reporter = ?"); values.push(reporter); }
-  if (comments !== undefined) { fields.push("comments = ?"); values.push(comments); }
-
-  values.push(req.params.id);
-
-  const sql = `UPDATE incidents SET ${fields.join(", ")} WHERE id = ?`;
-
-  db.run(sql, values, function (err) {
+  db.get("SELECT owner_id FROM incidents WHERE id = ?", [req.params.id], (err, row) => {
     if (err) return problem(res, 500, "Database error", err.message);
-    if (this.changes === 0) return problem(res, 404, "Not found", `Incident ${req.params.id} not found`);
-    res.json({ message: "Updated" });
+    if (!row) return problem(res, 404, "Not found", `Incident ${req.params.id} not found`);
+
+    if (row.owner_id && row.owner_id !== req.currentUserId) {
+      return problem(res, 403, "Forbidden", "You do not have access to this incident");
+    }
+
+    const fields = [];
+    const values = [];
+
+    fields.push("severity = ?"); values.push(severity.toLowerCase());
+    if (tag)      { fields.push("tag = ?");      values.push(tag); }
+    if (date)     { fields.push("date = ?");     values.push(date); }
+    if (reporter) { fields.push("reporter = ?"); values.push(reporter); }
+    if (comments !== undefined) { fields.push("comments = ?"); values.push(comments); }
+
+    values.push(req.params.id);
+
+    const sql = `UPDATE incidents SET ${fields.join(", ")} WHERE id = ?`;
+
+    db.run(sql, values, function (err) {
+      if (err) return problem(res, 500, "Database error", err.message);
+      res.json({ message: "Updated" });
+    });
   });
 }
 
 export function deleteIncident(req, res) {
-  db.run("DELETE FROM incidents WHERE id = ?", [req.params.id], function (err) {
+  // Сценарій В — IDOR: перевірка власника перед видаленням
+  db.get("SELECT owner_id FROM incidents WHERE id = ?", [req.params.id], (err, row) => {
     if (err) return problem(res, 500, "Database error", err.message);
-    if (this.changes === 0) return problem(res, 404, "Not found", `Incident ${req.params.id} not found`);
-    res.status(204).send();
+    if (!row) return problem(res, 404, "Not found", `Incident ${req.params.id} not found`);
+
+    if (row.owner_id && row.owner_id !== req.currentUserId) {
+      return problem(res, 403, "Forbidden", "You do not have access to this incident");
+    }
+
+    db.run("DELETE FROM incidents WHERE id = ?", [req.params.id], function (err) {
+      if (err) return problem(res, 500, "Database error", err.message);
+      res.status(204).send();
+    });
   });
 }
 

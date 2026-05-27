@@ -1,6 +1,15 @@
 const BASE = "http://localhost:3000/api/v1";
 
-// DTO типи (узгоджені з бекендом)
+let authToken: string | null = null;
+
+export function setToken(token: string | null) {
+  authToken = token;
+}
+
+export function getToken(): string | null {
+  return authToken;
+}
+
 export interface IncidentDTO {
   id: number;
   date: string;
@@ -8,6 +17,7 @@ export interface IncidentDTO {
   severity: string;
   reporter: string;
   user: string;
+  owner_id?: number;
   comment?: string;
   comments?: string;
 }
@@ -29,6 +39,12 @@ export interface UpdateIncidentDTO {
   comments?: string;
 }
 
+export interface UserDTO {
+  id: number;
+  username: string;
+  role: string;
+}
+
 export interface ApiError {
   status: number;
   title: string;
@@ -36,7 +52,17 @@ export interface ApiError {
   errors?: Record<string, string>;
 }
 
-// Базова функція з таймаутом та retry лише для 429/503
+function getHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...extra,
+  };
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  }
+  return headers;
+}
+
 async function request<T>(
   url: string,
   options: RequestInit = {},
@@ -46,7 +72,6 @@ async function request<T>(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
 
-    // Якщо ззовні передали signal — слухаємо обидва
     const signal = options.signal
       ? anySignal([options.signal as AbortSignal, controller.signal])
       : controller.signal;
@@ -55,7 +80,6 @@ async function request<T>(
       const res = await fetch(url, { ...options, signal });
       clearTimeout(timeout);
 
-      // Retry лише для safe-методів при 429/503
       const method = (options.method || "GET").toUpperCase();
       const isSafe = method === "GET" || method === "HEAD";
       if ((res.status === 429 || res.status === 503) && isSafe && i < retries) {
@@ -72,20 +96,14 @@ async function request<T>(
         throw err;
       }
 
-      // 204 No Content
       if (res.status === 204) return undefined as T;
-
       return res.json() as Promise<T>;
+
     } catch (e: unknown) {
       clearTimeout(timeout);
-
-      // AbortError — або таймаут, або скасування користувачем
       if (e instanceof Error && e.name === "AbortError") throw e;
-
-      // Якщо це наша ApiError — пробрасуємо далі
       if (isApiError(e)) throw e;
 
-      // Мережева помилка — retry
       if (i < retries) {
         await sleep(500 * (i + 1));
         continue;
@@ -110,7 +128,6 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-// Об'єднує два AbortSignal (браузерний API лише з одним сигналом)
 function anySignal(signals: AbortSignal[]): AbortSignal {
   const controller = new AbortController();
   for (const s of signals) {
@@ -120,19 +137,47 @@ function anySignal(signals: AbortSignal[]): AbortSignal {
   return controller.signal;
 }
 
-// API методи
+export function login(username: string, password: string): Promise<{ token: string; user: UserDTO }> {
+  return request(`${BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+}
+
+export function register(username: string, password: string): Promise<UserDTO> {
+  return request(`${BASE}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+}
+
+export function logout(): Promise<{ message: string }> {
+  return request(`${BASE}/auth/logout`, {
+    method: "POST",
+    headers: getHeaders(),
+  });
+}
+
 export function getIncidents(signal?: AbortSignal): Promise<IncidentDTO[]> {
-  return request<IncidentDTO[]>(`${BASE}/incidents`, { signal });
+  return request<IncidentDTO[]>(`${BASE}/incidents`, {
+    signal,
+    headers: getHeaders(),
+  });
 }
 
 export function getIncidentById(id: number, signal?: AbortSignal): Promise<IncidentDTO> {
-  return request<IncidentDTO>(`${BASE}/incidents/${id}`, { signal });
+  return request<IncidentDTO>(`${BASE}/incidents/${id}`, {
+    signal,
+    headers: getHeaders(),
+  });
 }
 
 export function createIncident(data: CreateIncidentDTO): Promise<{ id: number }> {
   return request<{ id: number }>(`${BASE}/incidents`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(),
     body: JSON.stringify(data),
   });
 }
@@ -140,11 +185,14 @@ export function createIncident(data: CreateIncidentDTO): Promise<{ id: number }>
 export function updateIncident(id: number, data: UpdateIncidentDTO): Promise<{ message: string }> {
   return request<{ message: string }>(`${BASE}/incidents/${id}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(),
     body: JSON.stringify(data),
   });
 }
 
 export function deleteIncident(id: number): Promise<undefined> {
-  return request<undefined>(`${BASE}/incidents/${id}`, { method: "DELETE" });
+  return request<undefined>(`${BASE}/incidents/${id}`, {
+    method: "DELETE",
+    headers: getHeaders(),
+  });
 }

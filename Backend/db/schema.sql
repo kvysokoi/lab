@@ -1,31 +1,41 @@
 CREATE TABLE IF NOT EXISTS users (
- id INTEGER PRIMARY KEY AUTOINCREMENT,
- username TEXT NOT NULL
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'user'
 );
 
 CREATE TABLE IF NOT EXISTS incidents (
- id INTEGER PRIMARY KEY AUTOINCREMENT,
- date TEXT,
- tag TEXT,
- severity TEXT,
- comments TEXT,
- reporter TEXT,
- user_id INTEGER,
- FOREIGN KEY (user_id) REFERENCES users(id)
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  date TEXT,
+  tag TEXT,
+  severity TEXT,
+  comments TEXT,
+  reporter TEXT,
+  user_id INTEGER,
+  owner_id INTEGER,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (owner_id) REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS comments (
- id INTEGER PRIMARY KEY AUTOINCREMENT,
- incident_id INTEGER,
- text TEXT
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  incident_id INTEGER,
+  text TEXT
 );
 
 CREATE TABLE IF NOT EXISTS tags (
- id INTEGER PRIMARY KEY AUTOINCREMENT,
- name TEXT
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT
 );
 
 CREATE TABLE IF NOT EXISTS incident_tags (
- incident_id INTEGER,
- tag_id INTEGER
+  incident_id INTEGER,
+  tag_id INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS revoked_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  token TEXT NOT NULL UNIQUE,
+  revoked_at TEXT NOT NULL
 );
